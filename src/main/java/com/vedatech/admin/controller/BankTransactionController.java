@@ -2,6 +2,7 @@ package com.vedatech.admin.controller;
 
 
 import com.vedatech.admin.controller.sat.CertificadosIf;
+import com.vedatech.admin.controller.sat.DefaultNamespacePrefixMapper;
 import com.vedatech.admin.controller.sat.SelloDigitalIF;
 import com.vedatech.admin.model.bank.BankTransaction;
 import com.vedatech.admin.model.invoice.CMetodoPago;
@@ -9,7 +10,6 @@ import com.vedatech.admin.model.invoice.CMoneda;
 import com.vedatech.admin.model.invoice.CTipoDeComprobante;
 import com.vedatech.admin.model.invoice.Comprobante;
 import com.vedatech.admin.service.bank.BankTransactionService;
-import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -17,7 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
-import sun.security.pkcs.PKCS8Key;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -28,7 +27,6 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.security.*;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -187,6 +185,8 @@ public class BankTransactionController {
 
 //            Create XML FILE
 
+            String COMPROBANTE_XML = "C:\\CFDI-XML\\cfdi.xml";
+
 //                        Obtener Certificado y la Key
 
             File fileCer = new File("C:/SAT2/CSDAAA010101AAA/CSD01_AAA010101AAA.cer");
@@ -314,6 +314,16 @@ public class BankTransactionController {
             StringWriter writer = new StringWriter();
             marshaller.marshal(comprobante1, writer);
             System.out.println("XML FILE " + writer.toString());
+
+            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+            marshaller.setProperty(Marshaller.JAXB_ENCODING, "UTF-8");
+            marshaller.setProperty(Marshaller.JAXB_SCHEMA_LOCATION, "http://www.sat.gob.mx/cfd/3 " +
+                    "http://www.sat.gob.mx/sitio_internet/cfd/3/cfdv33.xsd");
+            marshaller.setProperty("com.sun.xml.bind.namespacePrefixMapper", new DefaultNamespacePrefixMapper());
+            marshaller.setProperty(Marshaller.JAXB_FRAGMENT, Boolean.TRUE);
+
+            marshaller.marshal(comprobante1, new File(COMPROBANTE_XML));
+            System.out.println("DOCUMENTO FINAL");
 
 
         } catch (JAXBException | CertificateException e) {
