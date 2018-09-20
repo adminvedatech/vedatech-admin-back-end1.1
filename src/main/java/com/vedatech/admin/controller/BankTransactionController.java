@@ -2,6 +2,7 @@ package com.vedatech.admin.controller;
 
 
 import com.vedatech.admin.controller.sat.CertificadosIf;
+import com.vedatech.admin.controller.sat.SelloDigitalIF;
 import com.vedatech.admin.model.bank.BankTransaction;
 import com.vedatech.admin.model.invoice.CMetodoPago;
 import com.vedatech.admin.model.invoice.CMoneda;
@@ -22,10 +23,10 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.transform.TransformerException;
 import java.io.*;
 import java.math.BigDecimal;
-import java.security.InvalidKeyException;
-import java.security.PrivateKey;
+import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -33,6 +34,8 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/bank")
@@ -45,6 +48,10 @@ public class BankTransactionController {
 
     @Autowired
     CertificadosIf certificadosIf;
+
+    @Autowired
+    SelloDigitalIF selloDigitalIF;
+
 
     //-------------------Create a Transaction--------------------------------------------------------
 
@@ -180,7 +187,7 @@ public class BankTransactionController {
 
 //            Create XML FILE
 
-//          Obtener Certificado y la Key
+//                        Obtener Certificado y la Key
 
             File fileCer = new File("C:/SAT2/CSDAAA010101AAA/CSD01_AAA010101AAA.cer");
 
@@ -208,7 +215,7 @@ public class BankTransactionController {
 //            Leer Key
 
             // read key bytes
-            File in = new File("C:/SAT2/CSDAAA010101AAA/CSD01_AAA010101AAA.key");
+            File key = new File("C:/SAT2/CSDAAA010101AAA/CSD01_AAA010101AAA.key");
 //            byte[] keyBytes = new byte[in.available()];
 //            in.read(keyBytes);
 //            in.close();
@@ -220,6 +227,7 @@ public class BankTransactionController {
 //            Leer Certificado
 
             Marshaller marshaller = context.createMarshaller();
+            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
 
             Comprobante comprobante1 = new Comprobante();
             comprobante1.setVersion("3.3");
@@ -263,6 +271,46 @@ public class BankTransactionController {
             comprobante1.setReceptor(receptor);
             comprobante1.setConceptos(conceptosList);
 
+
+//                   Obtener Cadena Original
+
+            String comprobanteXml = selloDigitalIF.convertXmlToString(comprobante1);
+
+            String cadenaoriginal = "";
+            PrivateKey privateKey = null;
+            String selloDigital = "";
+
+            try {
+                cadenaoriginal = selloDigitalIF.generarCadenaOriginale(comprobanteXml);
+                System.out.println("cadenda original " + cadenaoriginal);
+            } catch (TransformerException e) {
+                Logger.getLogger(BankTransaction.class.getName()).log(Level.SEVERE, null, e);
+            }
+
+//                     Sellar y Agregar al XML
+
+            String pass = "12345678a";  //Esta contraseña es la que da el SAT al contribuyente
+            try {
+                privateKey = selloDigitalIF.getPrivateKey( key, pass);
+            } catch (GeneralSecurityException e) {
+                e.printStackTrace();
+            }
+
+            try {
+                selloDigital = selloDigitalIF.generarSelloDigital(privateKey, cadenaoriginal);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            } catch (NoSuchProviderException e) {
+                e.printStackTrace();
+            } catch (InvalidKeyException e) {
+                e.printStackTrace();
+            } catch (SignatureException e) {
+                e.printStackTrace();
+            }
+
+            comprobante1.setSello(selloDigital);
+
+
             StringWriter writer = new StringWriter();
             marshaller.marshal(comprobante1, writer);
             System.out.println("XML FILE " + writer.toString());
@@ -278,6 +326,8 @@ public class BankTransactionController {
 
         return new ResponseEntity<String>(headers, HttpStatus.OK);
     }
+
+
 
     public static void muestraContenido(String archivo) throws FileNotFoundException, IOException {
         String cadena;
